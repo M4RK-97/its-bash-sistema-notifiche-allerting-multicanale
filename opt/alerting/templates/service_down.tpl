@@ -1,0 +1,1 @@
+Service {{SERVICE_NAME}} is DOWN
