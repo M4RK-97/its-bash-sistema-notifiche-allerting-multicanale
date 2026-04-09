@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 
+# Carico il file di configurazione
 CONFIG_FILE="/etc/alerting/config.conf"
 source "$CONFIG_FILE"
 
-HOST="${HOSTNAME_LABEL:-local}"
-NOW="$(date '+%Y-%m-%d %H:%M:%S')"
+# Variabili
+HOST="${HOSTNAME_LABEL:-local}" # Se HOSTNAME_LABEL non è definito, usa "local"
+NOW="$(date '+%Y-%m-%d %H:%M:%S')" # Timestamp formattato
 
 # --- DISK ---
 DISK_USAGE=$(df / | awk 'NR==2 {gsub("%","",$5); print $5}')
