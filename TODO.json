@@ -1,0 +1,285 @@
+{
+  "project": "alerting-system-v1",
+  "version": "1.0",
+  "objective": "Stabilizzare MVP e portarlo a versione v1 con notifiche reali, rate limiting e dashboard affidabile",
+  "principles": [
+    "no overengineering",
+    "bash come orchestratore",
+    "php solo view",
+    "variables.data come contract",
+    "docker-first"
+  ],
+  "members": {
+    "A": "Monitoring & Detection",
+    "B": "Notification System",
+    "C": "Dashboard & Rate Limiting"
+  },
+  "phases": [
+    {
+      "id": "phase_1_stabilization",
+      "goal": "Stabilizzare MVP e rendere sistema consistente",
+      "tasks": [
+        {
+          "id": "A1",
+          "owner": "A",
+          "title": "Hardening parsing metriche sistema",
+          "description": "Rendere robusti parsing di disk usage e load average evitando valori vuoti o malformati",
+          "actions": [
+            "aggiungere fallback default",
+            "validare output numerico",
+            "gestire errori awk/uptime"
+          ],
+          "acceptance": [
+            "mai valori vuoti in variables.data",
+            "disk_usage sempre numero intero",
+            "load_avg sempre float"
+          ]
+        },
+        {
+          "id": "A2",
+          "owner": "A",
+          "title": "Normalizzazione stato servizi",
+          "description": "Uniformare ACTIVE/DOWN senza ambiguità",
+          "actions": [
+            "usare solo ACTIVE o DOWN",
+            "eliminare stati intermedi",
+            "garantire serializzazione corretta"
+          ],
+          "acceptance": [
+            "SERVICES_STATUS sempre valido",
+            "nessuna entry vuota"
+          ]
+        },
+        {
+          "id": "C1",
+          "owner": "C",
+          "title": "Parsing PHP robusto",
+          "description": "Evitare crash su variables.data malformato",
+          "actions": [
+            "gestire linee invalide",
+            "gestire chiavi mancanti",
+            "default fallback UI"
+          ],
+          "acceptance": [
+            "dashboard sempre renderizzata",
+            "nessun warning PHP"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase_2_rate_limiting",
+      "goal": "Implementare rate limiting per evitare spam alert",
+      "tasks": [
+        {
+          "id": "C2",
+          "owner": "C",
+          "title": "Implementazione rate limiting per tipo alert",
+          "description": "Lock file per ogni alert type",
+          "actions": [
+            "creare directory /tmp/alerting-rate-limit",
+            "implementare funzione rate_limit_ok",
+            "implementare timestamp last alert"
+          ],
+          "acceptance": [
+            "max 1 alert per tipo ogni 15 minuti",
+            "lock file creato correttamente"
+          ]
+        },
+        {
+          "id": "C3",
+          "owner": "C",
+          "title": "Integrazione rate limit nel flusso alert",
+          "description": "Bloccare invio notifiche se rate limit attivo",
+          "actions": [
+            "wrap send-notification",
+            "loggare skip per rate limit"
+          ],
+          "acceptance": [
+            "alert duplicati non inviati",
+            "log contiene eventi rate_limited"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase_3_notifications",
+      "goal": "Attivare notifiche reali multi-canale",
+      "tasks": [
+        {
+          "id": "B1",
+          "owner": "B",
+          "title": "Email notification reale",
+          "description": "Integrare mail command",
+          "actions": [
+            "verificare presenza mail",
+            "gestire fallback se assente",
+            "formattare subject e body"
+          ],
+          "acceptance": [
+            "email inviata correttamente",
+            "log stato invio"
+          ]
+        },
+        {
+          "id": "B2",
+          "owner": "B",
+          "title": "Slack webhook reale",
+          "description": "Invio POST JSON webhook",
+          "actions": [
+            "costruire payload JSON",
+            "gestire errori curl",
+            "supportare modalità simulata"
+          ],
+          "acceptance": [
+            "messaggio ricevuto su Slack",
+            "fallback simulato funzionante"
+          ]
+        },
+        {
+          "id": "B3",
+          "owner": "B",
+          "title": "Telegram bot reale",
+          "description": "Invio tramite API Telegram",
+          "actions": [
+            "integrare endpoint sendMessage",
+            "gestire encoding testo",
+            "fallback simulato"
+          ],
+          "acceptance": [
+            "messaggio ricevuto su Telegram",
+            "log corretto"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase_4_alert_engine",
+      "goal": "Separare detection da dispatch alert",
+      "tasks": [
+        {
+          "id": "A3",
+          "owner": "A",
+          "title": "Trigger alert per condizioni critiche",
+          "description": "Generare alert su soglie superate",
+          "actions": [
+            "disk > threshold",
+            "load > threshold",
+            "service DOWN"
+          ],
+          "acceptance": [
+            "alert generato correttamente",
+            "severity coerente"
+          ]
+        },
+        {
+          "id": "A4",
+          "owner": "A",
+          "title": "Classificazione severity",
+          "description": "Standardizzare livelli",
+          "actions": [
+            "CRITICAL per service down e disk",
+            "WARNING per load",
+            "OK default"
+          ],
+          "acceptance": [
+            "nessuna severity incoerente"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase_5_templates",
+      "goal": "Sistema template messaggi",
+      "tasks": [
+        {
+          "id": "B4",
+          "owner": "B",
+          "title": "Template rendering bash",
+          "description": "Sostituzione variabili nei template",
+          "actions": [
+            "implementare replace {{VAR}}",
+            "supportare campi dinamici",
+            "fallback template"
+          ],
+          "acceptance": [
+            "template correttamente renderizzato"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase_6_dashboard_upgrade",
+      "goal": "Dashboard più informativa",
+      "tasks": [
+        {
+          "id": "C4",
+          "owner": "C",
+          "title": "Colori e stati UI",
+          "description": "Visual feedback chiaro",
+          "actions": [
+            "classi css ok/warning/critical",
+            "color coding servizi"
+          ],
+          "acceptance": [
+            "UI leggibile immediatamente"
+          ]
+        },
+        {
+          "id": "C5",
+          "owner": "C",
+          "title": "Storico alert (log view)",
+          "description": "Leggere ultimi alert dal log",
+          "actions": [
+            "tail log file",
+            "mostrare ultimi 20 eventi"
+          ],
+          "acceptance": [
+            "storico visibile in dashboard"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "phase_7_docker_hardening",
+      "goal": "Stabilizzare container",
+      "tasks": [
+        {
+          "id": "A5",
+          "owner": "A",
+          "title": "Rimozione dipendenza systemctl",
+          "description": "Usare pgrep o alternative",
+          "actions": [
+            "eliminare systemctl",
+            "validare servizi via processo"
+          ],
+          "acceptance": [
+            "funzionamento completo in docker"
+          ]
+        },
+        {
+          "id": "C6",
+          "owner": "C",
+          "title": "Entrypoint dedicato",
+          "description": "Separare loop monitor da command inline",
+          "actions": [
+            "creare entrypoint.sh",
+            "gestire processi in background"
+          ],
+          "acceptance": [
+            "container stabile",
+            "no crash loop"
+          ]
+        }
+      ]
+    }
+  ],
+  "definition_of_done": [
+    "dashboard sempre disponibile",
+    "alert inviati correttamente",
+    "rate limiting attivo",
+    "log consistenti",
+    "nessun crash runtime",
+    "docker up stabile"
+  ]
+}
