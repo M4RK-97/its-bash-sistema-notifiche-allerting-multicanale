@@ -1,0 +1,1 @@
+Load high: {{LOAD_AVG}}

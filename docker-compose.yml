@@ -1,0 +1,36 @@
+services:
+  alerting:
+    build: .
+    container_name: alerting_system
+
+    ports:
+      - "8080:80"
+
+    volumes:
+      # Persistenza configurazione
+      - ./etc/alerting:/etc/alerting
+
+      # Persistenza script (hot reload dev)
+      - ./opt/alerting:/opt/alerting
+
+      # Persistenza web
+      - ./var/www/html:/var/www/html
+
+      # Log persistenti
+      - ./logs:/var/log
+
+    environment:
+      - TZ=Europe/Rome
+
+    restart: unless-stopped
+
+    command: >
+      bash -c "
+        echo 'Starting alert loop...' &&
+        while true; do
+          /opt/alerting/alert-system.sh;
+          sleep 60;
+        done &
+
+        apache2-foreground
+      "
