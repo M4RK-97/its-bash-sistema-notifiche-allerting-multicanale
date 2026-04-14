@@ -55,98 +55,6 @@ function e($value): string
     return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
 
-function normalize_status($value): string
-{
-    $status = strtoupper(trim((string) $value));
-
-    if ($status === '') {
-        return 'UNKNOWN';
-    }
-
-    if (in_array($status, ['OK', 'WARNING', 'CRITICAL', 'ACTIVE', 'DOWN', 'UNKNOWN'], true)) {
-        return $status;
-    }
-
-    return 'UNKNOWN';
-}
-
-function tone_for_status($status): string
-{
-    return match (normalize_status($status)) {
-        'OK', 'ACTIVE' => 'ok',
-        'WARNING' => 'warning',
-        'CRITICAL', 'DOWN' => 'critical',
-        default => 'neutral',
-    };
-}
-
-function parse_number($value): ?float
-{
-    $normalized = str_replace(',', '.', trim((string) $value));
-
-    if ($normalized === '' || !is_numeric($normalized)) {
-        return null;
-    }
-
-    return (float) $normalized;
-}
-
-function metric_tone(?float $value, ?float $threshold): string
-{
-    if ($value === null || $threshold === null || $threshold <= 0) {
-        return 'neutral';
-    }
-
-    if ($value >= $threshold) {
-        return 'critical';
-    }
-
-    if ($value >= ($threshold * 0.8)) {
-        return 'warning';
-    }
-
-    return 'ok';
-}
-
-function metric_label(?float $value, ?float $threshold): string
-{
-    if ($value === null || $threshold === null || $threshold <= 0) {
-        return 'No threshold data';
-    }
-
-    if ($value >= $threshold) {
-        return 'Above threshold';
-    }
-
-    if ($value >= ($threshold * 0.8)) {
-        return 'Near threshold';
-    }
-
-    return 'Within range';
-}
-
-function disk_fill(?float $value): int
-{
-    if ($value === null) {
-        return 0;
-    }
-
-    return (int) max(0, min(100, round($value)));
-}
-
-function load_fill(?float $value, ?float $threshold): int
-{
-    if ($value === null) {
-        return 0;
-    }
-
-    if ($threshold !== null && $threshold > 0) {
-        return (int) max(0, min(100, round(($value / $threshold) * 100)));
-    }
-
-    return (int) max(0, min(100, round($value * 10)));
-}
-
 function services($serialized): array
 {
     if (!is_string($serialized) || trim($serialized) === '') {
@@ -181,60 +89,7 @@ function services($serialized): array
     return $out;
 }
 
-$overallStatus = normalize_status($data['OVERALL_STATUS']);
-$overallTone = tone_for_status($overallStatus);
-$diskValue = parse_number($data['DISK_USAGE']);
-$diskThreshold = parse_number($data['DISK_THRESHOLD']);
-$loadValue = parse_number($data['LOAD_AVG']);
-$loadThreshold = parse_number($data['LOAD_THRESHOLD']);
-$diskTone = metric_tone($diskValue, $diskThreshold);
-$loadTone = metric_tone($loadValue, $loadThreshold);
-$diskLabel = metric_label($diskValue, $diskThreshold);
-$loadLabel = metric_label($loadValue, $loadThreshold);
-
-$serviceList = [];
-$serviceCounts = [
-    'ACTIVE' => 0,
-    'DOWN' => 0,
-    'UNKNOWN' => 0,
-];
-
-foreach (services($data['SERVICES_STATUS']) as [$name, $status]) {
-    $normalizedStatus = normalize_status($status);
-
-    if (!isset($serviceCounts[$normalizedStatus])) {
-        $normalizedStatus = 'UNKNOWN';
-    }
-
-    $serviceCounts[$normalizedStatus]++;
-    $serviceList[] = [
-        'name' => $name,
-        'status' => $normalizedStatus,
-        'tone' => tone_for_status($normalizedStatus),
-    ];
-}
-
-$totalServices = count($serviceList);
-$stats = [
-    ['label' => 'Host', 'value' => $data['HOST'], 'tone' => 'neutral'],
-    ['label' => 'IP Address', 'value' => $data['IP_ADDRESS'], 'tone' => 'neutral'],
-    ['label' => 'Uptime', 'value' => $data['UPTIME_READABLE'], 'tone' => 'neutral'],
-    ['label' => 'Users Connected', 'value' => $data['USERS_CONNECTED'], 'tone' => 'neutral'],
-];
-
-$runtimeSnapshot = [
-    'HOST' => $data['HOST'],
-    'TIMESTAMP' => $data['TIMESTAMP'],
-    'OVERALL_STATUS' => $overallStatus,
-    'IP_ADDRESS' => $data['IP_ADDRESS'],
-    'DISK_USAGE' => $data['DISK_USAGE'],
-    'DISK_THRESHOLD' => $data['DISK_THRESHOLD'],
-    'LOAD_AVG' => $data['LOAD_AVG'],
-    'LOAD_THRESHOLD' => $data['LOAD_THRESHOLD'],
-    'UPTIME_READABLE' => $data['UPTIME_READABLE'],
-    'USERS_CONNECTED' => $data['USERS_CONNECTED'],
-    'SERVICES_STATUS' => $data['SERVICES_STATUS'],
-];
+$serviceList = services($data['SERVICES_STATUS']);
 
 ?>
 <!DOCTYPE html>
@@ -823,48 +678,28 @@ $runtimeSnapshot = [
                     </div>
                 </div>
 
-                <?php if (!$serviceList): ?>
-                    <div class="empty-state">
-                        No services data available. The dashboard is ready and waiting for a valid <strong>SERVICES_STATUS</strong> payload.
-                    </div>
-                <?php else: ?>
-                    <div class="services-grid">
-                        <?php foreach ($serviceList as $index => $service): ?>
-                            <article class="service-card tone-<?= e($service['tone']) ?>" style="--delay: <?= e((string) ($index + 8)) ?>;">
-                                <div class="service-top">
-                                    <div class="service-name"><?= e($service['name']) ?></div>
-                                    <span class="chip tone-<?= e($service['tone']) ?>"><?= e($service['status']) ?></span>
-                                </div>
-                                <div class="service-meta">
-                                    Current state for monitored process <strong><?= e($service['name']) ?></strong>.
-                                </div>
-                            </article>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
-            </section>
+<?php if ($warnings): ?>
+<p><?= e(implode(' ', $warnings)) ?></p>
+<?php endif; ?>
 
-            <section class="panel" style="--delay: 8;">
-                <div class="panel-header">
-                    <div>
-                        <h2>Runtime Snapshot</h2>
-                        <p>A direct, readable mirror of the current contract so debugging stays fast.</p>
-                    </div>
-                    <span class="chip tone-neutral">variables.data</span>
-                </div>
+<p>Host: <?= e($data['HOST']) ?></p>
+<p>IP: <?= e($data['IP_ADDRESS']) ?></p>
+<p>Status: <b><?= e($data['OVERALL_STATUS']) ?></b></p>
+<p>Time: <?= e($data['TIMESTAMP']) ?></p>
 
-                <div class="snapshot">
-                    <?php $rowDelay = 9; ?>
-                    <?php foreach ($runtimeSnapshot as $key => $value): ?>
-                        <div class="snapshot-row" style="--delay: <?= e((string) $rowDelay) ?>;">
-                            <div class="snapshot-key"><?= e($key) ?></div>
-                            <div class="snapshot-value"><?= e($value) ?></div>
-                        </div>
-                        <?php $rowDelay++; ?>
-                    <?php endforeach; ?>
-                </div>
-            </section>
-        </section>
-    </main>
-</body>
-</html>
+<h2>Resources</h2>
+<p>Disk: <?= e($data['DISK_USAGE']) ?>% / threshold <?= e($data['DISK_THRESHOLD']) ?>%</p>
+<p>Load: <?= e($data['LOAD_AVG']) ?> / threshold <?= e($data['LOAD_THRESHOLD']) ?></p>
+<p>Uptime: <?= e($data['UPTIME_READABLE']) ?></p>
+<p>Users connected: <?= e($data['USERS_CONNECTED']) ?></p>
+
+<h2>Services</h2>
+<?php if (!$serviceList): ?>
+<p>No services data available.</p>
+<?php else: ?>
+<ul>
+<?php foreach ($serviceList as [$name, $status]): ?>
+  <li><?= e($name) ?> -> <?= e($status) ?></li>
+<?php endforeach; ?>
+</ul>
+<?php endif; ?>
